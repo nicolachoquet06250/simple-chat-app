@@ -1,5 +1,5 @@
 import express, { Application } from "express";
-import socketIO, { Server as SocketIOServer } from "socket.io";
+import { Server as SocketIOServer } from "socket.io";
 import { createServer, Server as HTTPServer } from "http";
 import path from "path";
 
@@ -19,7 +19,7 @@ export class Server {
   private initialize(): void {
     this.app = express();
     this.httpServer = createServer(this.app);
-    this.io = socketIO(this.httpServer);
+    this.io = new SocketIOServer(this.httpServer);
 
     this.configureApp();
     this.configureRoutes();
@@ -59,6 +59,12 @@ export class Server {
       socket.on("call-user", (data: any) => {
         socket.to(data.to).emit("call-made", {
           offer: data.offer,
+          socket: socket.id
+        });
+      });
+
+      socket.on("call-out", (data: any) => {
+        socket.to(data.to).emit("call-out", {
           socket: socket.id
         });
       });

@@ -1,11 +1,16 @@
 let isAlreadyCalling = false;
 let getCalled = false;
+let callSocket;
 
 const existingCalls = [];
 
 const { RTCPeerConnection, RTCSessionDescription } = window;
 
-const peerConnection = new RTCPeerConnection();
+const peerConnection = new RTCPeerConnection({
+  'iceServers': [
+    {'urls': 'stun:stun.l.google.com:19302'}
+  ]
+});
 
 function unselectUsersFromList() {
   const alreadySelectedUser = document.querySelectorAll(
@@ -63,7 +68,7 @@ function updateUserList(socketIds) {
   });
 }
 
-const socket = io.connect("localhost:5000");
+const socket = io.connect(window.location.href);
 
 socket.on("update-user-list", ({ users }) => {
   updateUserList(users);
@@ -103,6 +108,7 @@ socket.on("call-made", async data => {
     to: data.socket
   });
   getCalled = true;
+  callSocket = data.socket;
 });
 
 socket.on("answer-made", async data => {
@@ -113,6 +119,7 @@ socket.on("answer-made", async data => {
   if (!isAlreadyCalling) {
     callUser(data.socket);
     isAlreadyCalling = true;
+    callSocket = data.socket;
   }
 });
 
@@ -121,8 +128,14 @@ socket.on("call-rejected", data => {
   unselectUsersFromList();
 });
 
+socket.on("call-out", data => {
+  peerConnection.close();
+  document.querySelector('#remote-video').srcObject = null;
+  callSocket = null;
+});
+
 peerConnection.ontrack = function({ streams: [stream] }) {
-  const remoteVideo = document.getElementById("remote-video");
+  const remoteVideo = document.querySelector("#remote-video");
   if (remoteVideo) {
     remoteVideo.srcObject = stream;
   }
@@ -131,7 +144,7 @@ peerConnection.ontrack = function({ streams: [stream] }) {
 navigator.getUserMedia(
   { video: true, audio: true },
   stream => {
-    const localVideo = document.getElementById("local-video");
+    const localVideo = document.querySelector("#local-video");
     if (localVideo) {
       localVideo.srcObject = stream;
     }
@@ -142,3 +155,13 @@ navigator.getUserMedia(
     console.warn(error.message);
   }
 );
+
+document.querySelector('#call-out').addEventListener('click', () => {
+  socket.emit("call-out", {
+    to: callSocket
+  });
+
+  peerConnection.close();
+  document.querySelector('#remote-video').srcObject = null;
+  callSocket = null;
+})
